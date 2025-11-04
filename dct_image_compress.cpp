@@ -80,6 +80,7 @@ void compress_channel(const vector<vector<double>> &channel, vector<vector<doubl
 {
     output.resize(height, vector<double>(width, 0));
 
+    // parcurgem imaginea in blocuri de 8x8
     for (int i = 0; i < height; i += BLOCK_SIZE)
     {
         for (int j = 0; j < width; j += BLOCK_SIZE)
@@ -87,19 +88,23 @@ void compress_channel(const vector<vector<double>> &channel, vector<vector<doubl
             vector<vector<double>> block(BLOCK_SIZE, vector<double>(BLOCK_SIZE, 0));
             vector<vector<double>> coeff(BLOCK_SIZE, vector<double>(BLOCK_SIZE, 0));
 
+            // in caz ca imaginea nu e multiplu de 8
             int block_h = min(BLOCK_SIZE, height - i);
             int block_w = min(BLOCK_SIZE, width - j);
 
+            // extragem blocul din canal
             for (int x = 0; x < block_h; ++x)
                 for (int y = 0; y < block_w; ++y)
                     block[x][y] = channel[i + x][j + y];
 
             dct_block(block, coeff);
 
+            // cuantizare (impartim fiecare coeficient la valoarea din matricea Q)
             for (int u = 0; u < BLOCK_SIZE; ++u)
                 for (int v = 0; v < BLOCK_SIZE; ++v)
                     coeff[u][v] = round(coeff[u][v] / Q[u][v]);
 
+            // convertim in vector 1D in ordine zigzag
             vector<double> zz(64);
             for (int idx = 0; idx < 64; ++idx)
             {
@@ -108,9 +113,11 @@ void compress_channel(const vector<vector<double>> &channel, vector<vector<doubl
                 zz[idx] = coeff[u][v];
             }
 
+            // pastram doar primii K coeficienti
             for (int idx = K; idx < 64; ++idx)
                 zz[idx] = 0;
 
+            // reconvertim vectorul zigzag in matrice 8x8 si dequantizam
             for (int idx = 0; idx < 64; ++idx)
             {
                 int u = zigzag_index[idx][0];
@@ -118,8 +125,10 @@ void compress_channel(const vector<vector<double>> &channel, vector<vector<doubl
                 coeff[u][v] = zz[idx] * Q[u][v];
             }
 
+            // reconstruim blocul
             idct_block(coeff, block);
 
+            // punem blocul reconstruit in canalul de output
             for (int x = 0; x < block_h; ++x)
                 for (int y = 0; y < block_w; ++y)
                     output[i + x][j + y] = block[x][y];
