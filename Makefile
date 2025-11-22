@@ -1,9 +1,9 @@
 build:
-	g++ -o dct_compress dct_image_compress.cpp
+	g++ -o dft_compression dft_compression_serial.cpp
 
 clean:
-	rm -f dct_compress
+	rm -f dft_compression
 .PHONY: build clean
 
 run: build
-	./dct_compress
+	./dft_compression
