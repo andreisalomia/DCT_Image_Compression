@@ -1,13 +1,15 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
-#include "stb_image.h"
-#include "stb_image_write.h"
+#include "../stb_image.h"
+#include "../stb_image_write.h"
 // https://github.com/nothings/stb
 // biblioteca de read/write imagini fara optimizari
 
 #include <bits/stdc++.h>
 #include <complex>
+
+#define THRESHOLD_FACTOR 0.001
 
 using namespace std;
 
@@ -104,8 +106,7 @@ vector<vector<complex<double>>> idft_2d(const vector<vector<complex<double>>> &f
     return result;
 }
 
-void compress_channel_fft(const vector<vector<double>> &channel, vector<vector<double>> &output,
-                          int width, int height, int keepPercentage)
+void compress_channel_fft(const vector<vector<double>> &channel, vector<vector<double>> &output, int width, int height)
 {
     output.resize(height, vector<double>(width, 0));
 
@@ -120,24 +121,40 @@ void compress_channel_fft(const vector<vector<double>> &channel, vector<vector<d
 
     vector<vector<complex<double>>> freq_domain = dft_2d(complex_channel);
 
-    double fraction = keepPercentage / 100.0;
-
-    int keep_rows = max(1, (int)(height * sqrt(fraction) / 2));
-    int keep_cols = max(1, (int)(width * sqrt(fraction) / 2));
-
+    double max_magnitude = 0.0;
     for (int i = 0; i < height; ++i)
     {
         for (int j = 0; j < width; ++j)
         {
-            bool low_freq_row = (i < keep_rows) || (i >= height - keep_rows);
-            bool low_freq_col = (j < keep_cols) || (j >= width - keep_cols);
-
-            if (!(low_freq_row && low_freq_col))
+            double mag = abs(freq_domain[i][j]);
+            if (mag > max_magnitude)
             {
-                freq_domain[i][j] = complex<double>(0, 0);
+                max_magnitude = mag;
             }
         }
     }
+
+    double threshold = max_magnitude * THRESHOLD_FACTOR;
+
+    cout << "  Max magnitude: " << max_magnitude << ", Threshold: " << threshold << endl;
+
+    int coeffs_kept = 0;
+    for (int i = 0; i < height; ++i)
+    {
+        for (int j = 0; j < width; ++j)
+        {
+            if (abs(freq_domain[i][j]) < threshold)
+            {
+                freq_domain[i][j] = complex<double>(0, 0);
+            }
+            else
+            {
+                coeffs_kept++;
+            }
+        }
+    }
+
+    cout << "  Coefficients kept: " << coeffs_kept << "/" << (width * height) << " (" << (100.0 * coeffs_kept / (width * height)) << "%)" << endl;
 
     vector<vector<complex<double>>> reconstructed = idft_2d(freq_domain);
 
@@ -153,29 +170,16 @@ void compress_channel_fft(const vector<vector<double>> &channel, vector<vector<d
 int main(int argc, char *argv[])
 {
     string input_file;
-    string output_file = "serial_compressed_dft.jpg";
+    string output_file = "serial_filtered_dft.jpg";
     string output_original = "serial_original_copy.jpg";
-    int keepPercentage;
 
-    if (argc == 3)
-    {
-        int k = atoi(argv[2]);
-        if (k < 1 || k > 100)
-        {
-            cerr << "Keep percentage must be between 1 and 100" << endl;
-            return 1;
-        }
-        input_file = argv[1];
-        keepPercentage = k;
-    }
-    else if (argc == 2)
+    if (argc == 2)
     {
         input_file = argv[1];
-        keepPercentage = 5;
     }
     else
     {
-        cerr << "Usage: " << argv[0] << " <input_image> [keep_percentage (1-100, default 5)]" << endl;
+        cerr << "Usage: " << argv[0] << " <input_image>" << endl;
         return 1;
     }
 
@@ -188,7 +192,6 @@ int main(int argc, char *argv[])
     }
 
     cout << "Image successfully loaded " << width << "x" << height << ", Nr channels: " << channels << endl;
-    cout << "Keeping " << keepPercentage << "% of frequency coefficients" << endl;
 
     if (!stbi_write_jpg(output_original.c_str(), width, height, channels, img, 90))
     {
@@ -215,13 +218,13 @@ int main(int argc, char *argv[])
 
     cout << "Processing Red channel..." << endl;
     vector<vector<double>> R_comp, G_comp, B_comp;
-    compress_channel_fft(R, R_comp, width, height, keepPercentage);
+    compress_channel_fft(R, R_comp, width, height);
 
     cout << "Processing Green channel..." << endl;
-    compress_channel_fft(G, G_comp, width, height, keepPercentage);
+    compress_channel_fft(G, G_comp, width, height);
 
     cout << "Processing Blue channel..." << endl;
-    compress_channel_fft(B, B_comp, width, height, keepPercentage);
+    compress_channel_fft(B, B_comp, width, height);
 
     vector<unsigned char> output(width * height * channels);
     for (int y = 0; y < height; ++y)
@@ -239,11 +242,11 @@ int main(int argc, char *argv[])
 
     if (!stbi_write_jpg(output_file.c_str(), width, height, channels, output.data(), 90))
     {
-        cerr << "Error writing compressed image" << endl;
+        cerr << "Error writing filtered image" << endl;
         return 1;
     }
 
-    cout << "Compressed image saved as: " << output_file << endl;
+    cout << "Filtered image saved as: " << output_file << endl;
     cout << "Original image saved as: " << output_original << endl;
     return 0;
 }
