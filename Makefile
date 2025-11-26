@@ -1,9 +1,11 @@
 build:
-	g++ -o dft_compression dft_compression_serial.cpp
+	g++ -O0 -o dft_filter_serial dft_filter_serial.cpp
 
 clean:
-	rm -f dft_compression
+	rm -f dft_filter_serial
+	rm -f serial_filtered_dft.jpg
+	rm -f serial_original_copy.jpg
 .PHONY: build clean
 
 run: build
-	./dft_compression
+	./dft_filter_serial
